@@ -2,30 +2,30 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# dépendances système
+# Installer dépendances système
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    wget \
-    unzip \
     gcc \
     make \
+    wget \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# télécharger Swiss Ephemeris (source officielle miroir)
-RUN wget https://github.com/aloistr/swisseph/archive/refs/heads/master.zip \
-    && unzip master.zip \
-    && cd swisseph-master \
-    && make swetest \
-    && cp swetest /app/
+# Télécharger Swiss Ephemeris
+RUN wget https://www.astro.com/ftp/swisseph/swe_unix_src_2.10.03.tar.gz \
+    && tar xzf swe_unix_src_2.10.03.tar.gz
 
-# copier projet
-COPY . /app
+# Compiler swetest
+RUN cd swe_unix_src_2.10.03 && \
+    make swetest && \
+    cp swetest /app/swetest
 
-# python deps
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# Installer Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-ENV PORT=9393
+# Copier ton code
+COPY . .
+
 EXPOSE 9393
 
 CMD ["python", "main.py"]
