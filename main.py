@@ -112,7 +112,6 @@ def calculate():
     date = f"{year}.{month}.{day}"
     time = f"{hour}:00:00"
 
-    # Accepte latitude OU lat, longitude OU lon
     lat = str(data.get("latitude") or data.get("lat") or "48.8566")
     lon = str(data.get("longitude") or data.get("lon") or "2.3522")
 
@@ -138,7 +137,6 @@ def calculate():
                     "deg_in_rashi": p["deg_in_rashi"]
                 }
 
-        # Rahu = mean node
         raw_rahu = run_swetest(date, time, lon, lat, "m")
         parsed_rahu = parse_planet_output(raw_rahu)
         rahu_deg = 0.0
@@ -168,7 +166,6 @@ def calculate():
             "deg_in_rashi": ketu_deg_in
         }
 
-        # Ascendant
         raw_asc = run_swetest_houses(date, time, lon, lat)
         asc_deg = parse_ascendant(raw_asc)
 
@@ -214,8 +211,3 @@ def health():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=9393)
-```
-
-Push Railway, puis teste directement avec les vrais paramètres du frontend :
-```
-https://jyotish-api-production-a50f.up.railway.app/api/calculate?year=1997&month=3&day=15&hour=15&latitude=48.8566&longitude=2.3522
