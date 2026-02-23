@@ -51,14 +51,13 @@ def run_swetest_houses(date, time, lon, lat):
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     return result.stdout
 
-def parse_first_degree(output):
+def parse_ascendant(output):
+    """Cherche la ligne 'Ascendant' et extrait le degré"""
     for line in output.strip().split("\n"):
-        line = line.strip()
-        if not line or "warning" in line.lower():
-            continue
-        match = re.search(r"([\d]+\.[\d]+)", line)
-        if match:
-            return float(match.group(1))
+        if line.strip().startswith("Ascendant"):
+            match = re.search(r"([\d]+\.[\d]+)", line)
+            if match:
+                return float(match.group(1))
     return 0.0
 
 def parse_planet_output(output):
@@ -96,8 +95,7 @@ def debug():
     return jsonify({
         "planets_parsed": parse_planet_output(raw),
         "rahu_parsed": parse_planet_output(raw_rahu),
-        "asc_raw": raw_asc,
-        "asc_first_deg": parse_first_degree(raw_asc),
+        "ascendant_deg": parse_ascendant(raw_asc),
     })
 
 @app.route("/api/calculate", methods=["GET", "POST"])
@@ -171,7 +169,7 @@ def calculate():
 
         # Ascendant
         raw_asc = run_swetest_houses(date, time, lon, lat)
-        asc_deg = parse_first_degree(raw_asc)
+        asc_deg = parse_ascendant(raw_asc)
 
         asc_rashi, asc_deg_in, asc_rashi_num = deg_to_rashi(asc_deg)
         lagna = {
