@@ -4,10 +4,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     build-essential \
+    gcc \
+    make \
     swig \
     git \
-    make \
-    gcc \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app
@@ -15,8 +16,10 @@ COPY . /app
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-ENV PORT=9393
+# 🔥 Compile Swiss Ephemeris
+RUN cd swetest/src && make clean && make
 
+ENV PORT=9393
 EXPOSE 9393
 
-CMD ["python", "main.py"]
+CMD ["gunicorn", "-b", "0.0.0.0:9393", "main:app"]
