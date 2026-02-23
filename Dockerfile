@@ -1,28 +1,28 @@
 FROM python:3.10-slim
 
-WORKDIR /app
-
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    gcc \
-    make \
-    wget \
+    build-essential gcc make wget git \
     && rm -rf /var/lib/apt/lists/*
 
-# Swiss Ephemeris (source officielle GitHub)
-RUN wget https://github.com/aloistr/swisseph/archive/refs/heads/master.tar.gz -O swisseph.tar.gz
+WORKDIR /app
 
-RUN tar -xzf swisseph.tar.gz && \
-    cd swisseph-master && \
-    make && \
-    cp swetest /app/swetest && \
-    chmod +x /app/swetest
+RUN git clone https://github.com/aloistr/swisseph.git /tmp/swisseph \
+    && cd /tmp/swisseph \
+    && make swetest \
+    && cp swetest /app/swetest \
+    && chmod +x /app/swetest \
+    && rm -rf /tmp/swisseph
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 9393
+CMD ["flask", "run", "--host=0.0.0.0", "--port=9393"]
+```
 
-CMD ["python", "main.py"]
+---
+
+## requirements.txt
+```
+flask>=2.3.0
