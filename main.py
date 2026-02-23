@@ -52,7 +52,6 @@ def run_swetest_houses(date, time, lon, lat):
     return result.stdout
 
 def parse_ascendant(output):
-    """Cherche la ligne 'Ascendant' et extrait le degré"""
     for line in output.strip().split("\n"):
         if line.strip().startswith("Ascendant"):
             match = re.search(r"([\d]+\.[\d]+)", line)
@@ -112,8 +111,10 @@ def calculate():
 
     date = f"{year}.{month}.{day}"
     time = f"{hour}:00:00"
-    lat  = str(data.get("lat", "48.8566"))
-    lon  = str(data.get("lon", "2.3522"))
+
+    # Accepte latitude OU lat, longitude OU lon
+    lat = str(data.get("latitude") or data.get("lat") or "48.8566")
+    lon = str(data.get("longitude") or data.get("lon") or "2.3522")
 
     try:
         raw = run_swetest(date, time, lon, lat, "0123456")
@@ -213,3 +214,8 @@ def health():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=9393)
+```
+
+Push Railway, puis teste directement avec les vrais paramètres du frontend :
+```
+https://jyotish-api-production-a50f.up.railway.app/api/calculate?year=1997&month=3&day=15&hour=15&latitude=48.8566&longitude=2.3522
