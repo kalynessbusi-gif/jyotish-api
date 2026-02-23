@@ -7,19 +7,6 @@ app = Flask(__name__)
 
 SWETEST_PATH = "/app/swetest"
 
-# Correspondance symbole planète -> nom swetest
-PLANETS = {
-    "Su": 0,  # Sun
-    "Mo": 1,  # Moon
-    "Ma": 4,  # Mars
-    "Me": 2,  # Mercury
-    "Ju": 5,  # Jupiter
-    "Ve": 3,  # Venus
-    "Sa": 6,  # Saturn
-    "Ra": 11, # Rahu (True Node)
-    "Ke": None # Ketu = Rahu + 180
-}
-
 RASHI = [
     "Aries", "Taurus", "Gemini", "Cancer",
     "Leo", "Virgo", "Libra", "Scorpio",
@@ -71,7 +58,6 @@ def parse_planet_output(output):
         line = line.strip()
         if not line:
             continue
-        # Format : "Sun        355°6'43"  Pisces"
         match = re.match(r"(\w+)\s+([\d]+)°([\d]+)'([\d]+)\"\s+(\w+)", line)
         if match:
             name = match.group(1)
@@ -80,23 +66,27 @@ def parse_planet_output(output):
             planets_data[name] = {"deg": round(deg, 4), "sign": sign, "rashi_num": RASHI_NUM.get(sign, 0)}
     return planets_data
 
-@app.route("/api/calculate", methods=["POST"])
+@app.route("/api/calculate", methods=["GET", "POST"])
 def calculate():
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "JSON body required"}), 400
+    if request.method == "POST":
+        data = request.get_json() or {}
+    else:
+        data = request.args
 
-    date = data.get("date", "2000.01.01")       # format: YYYY.MM.DD
-    time = data.get("time", "12:00:00")          # format: HH:MM:SS
-    lat  = str(data.get("lat", 48.8566))
-    lon  = str(data.get("lon", 2.3522))
+    year  = str(data.get("year", "2000"))
+    month = str(data.get("month", "01")).zfill(2)
+    day   = str(data.get("day", "01")).zfill(2)
+    hour  = str(data.get("hour", "12")).zfill(2)
+
+    date = f"{year}.{month}.{day}"
+    time = f"{hour}:00:00"
+    lat  = str(data.get("lat", "48.8566"))
+    lon  = str(data.get("lon", "2.3522"))
 
     try:
-        # Planètes principales : 0123456 + 11 (Rahu)
         raw = run_swetest(date, time, lon, lat, "01234567")
         parsed = parse_planet_output(raw)
 
-        # Construire graha
         name_map = {
             "Sun": "Su", "Moon": "Mo", "Mercury": "Me",
             "Venus": "Ve", "Mars": "Ma", "Jupiter": "Ju",
@@ -116,14 +106,12 @@ def calculate():
                     "deg_in_rashi": deg_in_rashi
                 }
 
-        # Rahu (node 11)
         raw_rahu = run_swetest(date, time, lon, lat, "11")
         parsed_rahu = parse_planet_output(raw_rahu)
-        if "true Node" in parsed_rahu or "TrueNode" in parsed_rahu or "Mean Node" in parsed_rahu:
+        rahu_deg = 0.0
+        if parsed_rahu:
             rahu_key = next(iter(parsed_rahu))
             rahu_deg = parsed_rahu[rahu_key]["deg"]
-        else:
-            rahu_deg = 0.0
 
         rahu_rashi, rahu_deg_in, rahu_rashi_num = deg_to_rashi(rahu_deg)
         graha["Ra"] = {
@@ -134,7 +122,6 @@ def calculate():
             "deg_in_rashi": rahu_deg_in
         }
 
-        # Ketu = Rahu + 180
         ketu_deg = (rahu_deg + 180) % 360
         ketu_rashi, ketu_deg_in, ketu_rashi_num = deg_to_rashi(ketu_deg)
         graha["Ke"] = {
@@ -145,7 +132,6 @@ def calculate():
             "deg_in_rashi": ketu_deg_in
         }
 
-        # Ascendant
         raw_asc = run_swetest_asc(date, time, lon, lat)
         asc_deg = 0.0
         for line in raw_asc.strip().split("\n"):
@@ -162,7 +148,6 @@ def calculate():
             "deg_in_rashi": asc_deg_in
         }
 
-        # Panchanga basique
         sun_lon = graha.get("Su", {}).get("lon", 0)
         moon_lon = graha.get("Mo", {}).get("lon", 0)
         tithi_num = int(((moon_lon - sun_lon) % 360) / 12) + 1
