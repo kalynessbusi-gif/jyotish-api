@@ -28,7 +28,7 @@ def calculate():
     try:
         # appel swetest (Swiss Ephemeris)
         cmd = [
-            "./swetest",
+            "/app/swetest",
             "-b{}-{}-{}".format(day, month, year),
             "-ut{}:{}".format(hour, minute),
             "-p0123456789",
