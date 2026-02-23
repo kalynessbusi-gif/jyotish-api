@@ -66,6 +66,23 @@ def parse_planet_output(output):
             planets_data[name] = {"deg": round(deg, 4), "sign": sign, "rashi_num": RASHI_NUM.get(sign, 0)}
     return planets_data
 
+@app.route("/debug", methods=["GET"])
+def debug():
+    date = request.args.get("date", "1997.03.15")
+    time = request.args.get("time", "15:00:00")
+    lat = "48.8566"
+    lon = "2.3522"
+
+    raw = run_swetest(date, time, lon, lat, "01234567")
+    raw_rahu = run_swetest(date, time, lon, lat, "11")
+    raw_asc = run_swetest_asc(date, time, lon, lat)
+
+    return jsonify({
+        "planets": raw,
+        "rahu": raw_rahu,
+        "asc": raw_asc
+    })
+
 @app.route("/api/calculate", methods=["GET", "POST"])
 def calculate():
     if request.method == "POST":
