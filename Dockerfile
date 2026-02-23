@@ -8,16 +8,12 @@ RUN apt-get update && apt-get install -y \
     make \
     swig \
     git \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app
 
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
-
-# 🔥 Compile Swiss Ephemeris
-RUN cd swetest/src && make clean && make
 
 ENV PORT=9393
 EXPOSE 9393
