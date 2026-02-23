@@ -36,14 +36,15 @@ def run_swetest(date, time, lon, lat, planets_flag):
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     return result.stdout
 
-def run_swetest_asc(date, time, lon, lat):
-    # -XA = ascendant only
+def run_swetest_houses(date, time, lon, lat):
+    # Calcul des maisons avec système Placidus, retourne Ascendant
     cmd = [
         SWETEST_PATH,
         f"-b{date}",
         f"-ut{time}",
         f"-geopos{lon},{lat},0",
-        "-hS",
+        "-house",
+        f"{lon},{lat},P",
         "-fPl",
         "-eswe",
         "-roundsec",
@@ -52,15 +53,29 @@ def run_swetest_asc(date, time, lon, lat):
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     return result.stdout
 
+def parse_first_degree(output):
+    """Extrait le premier nombre décimal trouvé dans la sortie"""
+    for line in output.strip().split("\n"):
+        line = line.strip()
+        if not line or "warning" in line.lower():
+            continue
+        match = re.search(r"([\d]+\.[\d]+)", line)
+        if match:
+            return float(match.group(1))
+    return 0.0
+
 def parse_planet_output(output):
     planets_data = {}
     for line in output.strip().split("\n"):
         line = line.strip()
         if not line or "warning" in line.lower() or "error" in line.lower():
             continue
-        match = re.match(r"([A-Za-z_]+)\s+([\d]+\.[\d]+)", line)
+        # Capture nom (avec espaces possibles) suivi d'un nombre décimal
+        match = re.match(r"([A-Za-z][A-Za-z _]+?)\s{2,}([\d]+\.[\d]+)", line)
+        if not match:
+            match = re.match(r"([A-Za-z]+)\s+([\d]+\.[\d]+)", line)
         if match:
-            name = match.group(1)
+            name = match.group(1).strip()
             deg = float(match.group(2))
             rashi, deg_in_rashi, rashi_num = deg_to_rashi(deg)
             planets_data[name] = {
@@ -79,17 +94,14 @@ def debug():
     lon = "2.3522"
 
     raw = run_swetest(date, time, lon, lat, "0123456")
-    # Rahu = mean node = flag "m", true node = flag "t"
     raw_rahu = run_swetest(date, time, lon, lat, "m")
-    raw_asc = run_swetest_asc(date, time, lon, lat)
+    raw_asc = run_swetest_houses(date, time, lon, lat)
 
     return jsonify({
-        "planets_raw": raw,
-        "rahu_raw": raw_rahu,
-        "asc_raw": raw_asc,
         "planets_parsed": parse_planet_output(raw),
         "rahu_parsed": parse_planet_output(raw_rahu),
-        "asc_parsed": parse_planet_output(raw_asc),
+        "asc_raw": raw_asc,
+        "asc_first_deg": parse_first_degree(raw_asc),
     })
 
 @app.route("/api/calculate", methods=["GET", "POST"])
@@ -110,7 +122,6 @@ def calculate():
     lon  = str(data.get("lon", "2.3522"))
 
     try:
-        # Planètes 0=Sun 1=Moon 2=Mercury 3=Venus 4=Mars 5=Jupiter 6=Saturn
         raw = run_swetest(date, time, lon, lat, "0123456")
         parsed = parse_planet_output(raw)
 
@@ -132,13 +143,16 @@ def calculate():
                     "deg_in_rashi": p["deg_in_rashi"]
                 }
 
-        # Rahu = mean node (flag "m")
+        # Rahu = mean node
         raw_rahu = run_swetest(date, time, lon, lat, "m")
         parsed_rahu = parse_planet_output(raw_rahu)
         rahu_deg = 0.0
-        if parsed_rahu:
-            rahu_key = next(iter(parsed_rahu))
-            rahu_deg = parsed_rahu[rahu_key]["deg"]
+        for key, val in parsed_rahu.items():
+            if "node" in key.lower() or "mean" in key.lower():
+                rahu_deg = val["deg"]
+                break
+        if rahu_deg == 0.0 and parsed_rahu:
+            rahu_deg = next(iter(parsed_rahu.values()))["deg"]
 
         rahu_rashi, rahu_deg_in, rahu_rashi_num = deg_to_rashi(rahu_deg)
         graha["Ra"] = {
@@ -159,12 +173,9 @@ def calculate():
             "deg_in_rashi": ketu_deg_in
         }
 
-        # Ascendant avec -hS
-        raw_asc = run_swetest_asc(date, time, lon, lat)
-        parsed_asc = parse_planet_output(raw_asc)
-        asc_deg = 0.0
-        if parsed_asc:
-            asc_deg = next(iter(parsed_asc.values()))["deg"]
+        # Ascendant via houses
+        raw_asc = run_swetest_houses(date, time, lon, lat)
+        asc_deg = parse_first_degree(raw_asc)
 
         asc_rashi, asc_deg_in, asc_rashi_num = deg_to_rashi(asc_deg)
         lagna = {
