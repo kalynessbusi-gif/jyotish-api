@@ -37,14 +37,12 @@ def run_swetest(date, time, lon, lat, planets_flag):
     return result.stdout
 
 def run_swetest_houses(date, time, lon, lat):
-    # Calcul des maisons avec système Placidus, retourne Ascendant
     cmd = [
         SWETEST_PATH,
         f"-b{date}",
         f"-ut{time}",
         f"-geopos{lon},{lat},0",
-        "-house",
-        f"{lon},{lat},P",
+        f"-house{lon},{lat},P",
         "-fPl",
         "-eswe",
         "-roundsec",
@@ -54,7 +52,6 @@ def run_swetest_houses(date, time, lon, lat):
     return result.stdout
 
 def parse_first_degree(output):
-    """Extrait le premier nombre décimal trouvé dans la sortie"""
     for line in output.strip().split("\n"):
         line = line.strip()
         if not line or "warning" in line.lower():
@@ -70,7 +67,6 @@ def parse_planet_output(output):
         line = line.strip()
         if not line or "warning" in line.lower() or "error" in line.lower():
             continue
-        # Capture nom (avec espaces possibles) suivi d'un nombre décimal
         match = re.match(r"([A-Za-z][A-Za-z _]+?)\s{2,}([\d]+\.[\d]+)", line)
         if not match:
             match = re.match(r"([A-Za-z]+)\s+([\d]+\.[\d]+)", line)
@@ -173,7 +169,7 @@ def calculate():
             "deg_in_rashi": ketu_deg_in
         }
 
-        # Ascendant via houses
+        # Ascendant
         raw_asc = run_swetest_houses(date, time, lon, lat)
         asc_deg = parse_first_degree(raw_asc)
 
