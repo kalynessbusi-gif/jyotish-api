@@ -53,17 +53,28 @@ def run_swetest_asc(date, time, lon, lat):
     return result.stdout
 
 def parse_planet_output(output):
+    """
+    Format swetest avec -fPl :
+    Sun      142.1854431
+    Moon     271.7994734
+    """
     planets_data = {}
     for line in output.strip().split("\n"):
         line = line.strip()
-        if not line:
+        if not line or "warning" in line.lower() or "error" in line.lower():
             continue
-        match = re.match(r"(\w+)\s+([\d]+)°([\d]+)'([\d]+)\"\s+(\w+)", line)
+        # Format: "PlanetName    123.456789"
+        match = re.match(r"([A-Za-z_]+)\s+([\d]+\.[\d]+)", line)
         if match:
             name = match.group(1)
-            deg = int(match.group(2)) + int(match.group(3))/60 + int(match.group(4))/3600
-            sign = match.group(5)
-            planets_data[name] = {"deg": round(deg, 4), "sign": sign, "rashi_num": RASHI_NUM.get(sign, 0)}
+            deg = float(match.group(2))
+            rashi, deg_in_rashi, rashi_num = deg_to_rashi(deg)
+            planets_data[name] = {
+                "deg": round(deg, 6),
+                "sign": rashi,
+                "rashi_num": rashi_num,
+                "deg_in_rashi": deg_in_rashi
+            }
     return planets_data
 
 @app.route("/debug", methods=["GET"])
@@ -78,9 +89,11 @@ def debug():
     raw_asc = run_swetest_asc(date, time, lon, lat)
 
     return jsonify({
-        "planets": raw,
-        "rahu": raw_rahu,
-        "asc": raw_asc
+        "planets_raw": raw,
+        "rahu_raw": raw_rahu,
+        "asc_raw": raw_asc,
+        "planets_parsed": parse_planet_output(raw),
+        "rahu_parsed": parse_planet_output(raw_rahu),
     })
 
 @app.route("/api/calculate", methods=["GET", "POST"])
@@ -104,6 +117,7 @@ def calculate():
         raw = run_swetest(date, time, lon, lat, "01234567")
         parsed = parse_planet_output(raw)
 
+        # swetest retourne : Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn
         name_map = {
             "Sun": "Su", "Moon": "Mo", "Mercury": "Me",
             "Venus": "Ve", "Mars": "Ma", "Jupiter": "Ju",
@@ -114,15 +128,15 @@ def calculate():
         for swetest_name, symbol in name_map.items():
             if swetest_name in parsed:
                 p = parsed[swetest_name]
-                rashi, deg_in_rashi, rashi_num = deg_to_rashi(p["deg"])
                 graha[symbol] = {
                     "name": swetest_name,
                     "lon": p["deg"],
-                    "rashi": rashi,
-                    "rashi_num": rashi_num,
-                    "deg_in_rashi": deg_in_rashi
+                    "rashi": p["sign"],
+                    "rashi_num": p["rashi_num"],
+                    "deg_in_rashi": p["deg_in_rashi"]
                 }
 
+        # Rahu (node vrai = flag 11)
         raw_rahu = run_swetest(date, time, lon, lat, "11")
         parsed_rahu = parse_planet_output(raw_rahu)
         rahu_deg = 0.0
@@ -149,13 +163,16 @@ def calculate():
             "deg_in_rashi": ketu_deg_in
         }
 
+        # Ascendant
         raw_asc = run_swetest_asc(date, time, lon, lat)
+        parsed_asc = parse_planet_output(raw_asc)
         asc_deg = 0.0
-        for line in raw_asc.strip().split("\n"):
-            if "Ascendant" in line or "asc" in line.lower():
-                m = re.search(r"([\d]+)°([\d]+)'([\d]+)\"", line)
-                if m:
-                    asc_deg = int(m.group(1)) + int(m.group(2))/60 + int(m.group(3))/3600
+        for key in parsed_asc:
+            if "asc" in key.lower():
+                asc_deg = parsed_asc[key]["deg"]
+                break
+        if asc_deg == 0.0 and parsed_asc:
+            asc_deg = next(iter(parsed_asc.values()))["deg"]
 
         asc_rashi, asc_deg_in, asc_rashi_num = deg_to_rashi(asc_deg)
         lagna = {
