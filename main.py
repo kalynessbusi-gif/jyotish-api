@@ -1,12 +1,30 @@
 from flask import Flask, jsonify, request
 import subprocess
-import json
+import os
 
 app = Flask(__name__)
+
+# ---------------------------------------------------
+# Trouver automatiquement swetest dans Railway
+# ---------------------------------------------------
+def get_swetest_path():
+    possible_paths = [
+        "/app/swetest",
+        "./swetest",
+        os.path.join(os.getcwd(), "swetest")
+    ]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+
+    return None
+
 
 @app.route("/")
 def home():
     return "Jyotish API running"
+
 
 @app.route("/api/ping")
 def ping():
@@ -25,12 +43,20 @@ def calculate():
     minute = request.args.get("min")
     tz = request.args.get("time_zone")
 
+    swetest_path = get_swetest_path()
+
+    # 🔴 sécurité : vérifier que swetest existe
+    if not swetest_path:
+        return jsonify({
+            "status": "error",
+            "message": "swetest binary not found in container"
+        }), 500
+
     try:
-        # appel swetest (Swiss Ephemeris)
         cmd = [
-            "/app/swetest",
-            "-b{}-{}-{}".format(day, month, year),
-            "-ut{}:{}".format(hour, minute),
+            swetest_path,
+            f"-b{day}-{month}-{year}",
+            f"-ut{hour}:{minute}",
             "-p0123456789",
             "-eswe",
             "-fPlZ",
@@ -41,6 +67,7 @@ def calculate():
 
         return jsonify({
             "status": "success",
+            "swetest_path": swetest_path,
             "raw_output": result
         })
 
